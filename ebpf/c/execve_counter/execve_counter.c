@@ -23,6 +23,7 @@ int main(int argc, char **argv)
   libbpf_set_print(libbpf_print_fn);
   
   // open BPF application
+  // 被定义在生成的 execve_counter.skel.h 文件中
   skel = execve_counter_bpf__open();
   if (!skel) {
     fprintf(stderr, "failed to open bpf skeleton\n");
@@ -30,6 +31,7 @@ int main(int argc, char **argv)
   }
 
   // load & verify bpf program
+  // map是在execve_counter_bpf__load中完成的创建，跟踪代码你会发现(参考libbpf源码)，最终会调用bpf系统调用创建map
   err = execve_counter_bpf__load(skel);
   if(err) {
     fprintf(stderr, "failed to load and verify bpf skeleton\n");
@@ -39,6 +41,8 @@ int main(int argc, char **argv)
   // init the counter
   stringkey key = "execve_counter";
   u64 v = 0;
+  // 创建 map ，bpf_map__update_elem 可以在 libbpf.h 中找到相关定义
+  // 在attach handler之前，先使用libbpf封装的bpf_map__update_elem初始化了bpf map中的key(初始化为0，如果没有这一步，第一次bpf程序执行时，会提示找不到key
   err = bpf_map__update_elem(skel->maps.execve_counter, &key, sizeof(key), &v, sizeof(v), BPF_ANY);
   if (err != 0){
     fprintf(stderr,  "failed to init the counter, %d\n", err);
@@ -54,6 +58,7 @@ int main(int argc, char **argv)
 
   for (;;){
     //read counter value from map
+    // 用于获取 map 数据 bpf_map__lookup_elem 可以在 libbpf.h 中找到相关定义
     err = bpf_map__lookup_elem(skel->maps.execve_counter,&key,sizeof(key),&v,sizeof(v),BPF_ANY);
     if (err!=0){
       fprintf(stderr, "lookup key from map err: %d\n", err);
